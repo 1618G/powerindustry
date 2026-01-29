@@ -357,7 +357,6 @@ export default function Index() {
                   <div className="text-left">
                     <p className="text-lg font-semibold text-white">Jordan Prescott</p>
                     <p className="text-sm text-gray-400">Power Industry Specialist</p>
-                    <p className="text-xs text-gray-500">15+ years experience in temporary power</p>
                   </div>
                 </div>
               </div>
