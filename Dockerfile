@@ -58,7 +58,9 @@ ENV HUSKY=0
 RUN pnpm install --prod --frozen-lockfile --ignore-scripts || pnpm install --prod --no-frozen-lockfile --ignore-scripts
 
 # Copy Prisma schema and regenerate for this platform
+# Prisma needs a DATABASE_URL at generate time (doesn't connect, just validates)
 COPY prisma ./prisma
+ENV DATABASE_URL="postgresql://user:pass@localhost:5432/db"
 RUN npx prisma generate
 
 # Copy built application from builder stage
