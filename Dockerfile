@@ -47,9 +47,9 @@ WORKDIR /app
 # Enable corepack for pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Create non-root user for security
+# Create non-root user for security with a proper home directory
 RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 remix
+    adduser --system --uid 1001 --home /home/remix remix
 
 # Copy package files and node_modules from builder (includes generated Prisma client)
 COPY --from=builder /app/package.json ./package.json
@@ -77,5 +77,5 @@ ENV PORT=3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:3000/api/healthz || exit 1
 
-# Start the application
-CMD ["pnpm", "start"]
+# Start the application using node directly (avoids corepack issues)
+CMD ["npx", "remix-serve", "./build/server/index.js"]
