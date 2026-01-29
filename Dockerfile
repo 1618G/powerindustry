@@ -5,9 +5,9 @@
 # Run: docker run -p 3000:3000 --env-file .env appname:latest
 
 # ============================================
-# Stage 1: Dependencies
+# Stage 1: Builder (deps + build)
 # ============================================
-FROM node:20-slim AS deps
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
@@ -17,31 +17,22 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Copy package files
 COPY package.json pnpm-lock.yaml* ./
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
+# Install ALL dependencies (including dev)
+ENV HUSKY=0
+RUN pnpm install --frozen-lockfile --ignore-scripts || pnpm install --no-frozen-lockfile --ignore-scripts
 
-# ============================================
-# Stage 2: Builder
-# ============================================
-FROM node:20-slim AS builder
-
-WORKDIR /app
-
-# Enable corepack for pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
+# Copy source code
 COPY . .
 
-# Generate Prisma client
-RUN pnpm exec prisma generate
+# Copy Prisma schema and generate client
+COPY prisma ./prisma
+RUN npx prisma generate
 
 # Build the application
 RUN pnpm build
 
 # ============================================
-# Stage 3: Production Runner
+# Stage 2: Production Runner
 # ============================================
 FROM node:20-slim AS runner
 
@@ -62,16 +53,13 @@ RUN addgroup --system --gid 1001 nodejs && \
 # Copy package files
 COPY package.json pnpm-lock.yaml* ./
 
-# Copy Prisma schema (needed for generate)
-COPY prisma ./prisma
-
-# Install production dependencies only (skip husky in Docker)
+# Install production dependencies only
 ENV HUSKY=0
 RUN pnpm install --prod --frozen-lockfile --ignore-scripts || pnpm install --prod --no-frozen-lockfile --ignore-scripts
 
-# Copy Prisma client from builder stage (already generated there)
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Copy Prisma schema and regenerate for this platform
+COPY prisma ./prisma
+RUN npx prisma generate
 
 # Copy built application from builder stage
 COPY --from=builder /app/build ./build
