@@ -1,0 +1,242 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ZZA Route Manifest",
+  "description": "Schema for validating route manifests in ZZA platform builds",
+  "type": "object",
+  "required": ["project", "version", "approved_by", "approved_at", "locked", "summary", "modules"],
+  "properties": {
+    "project": {
+      "type": "string",
+      "description": "Project name (slug format)"
+    },
+    "version": {
+      "type": "string",
+      "description": "Manifest version"
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "Who approved this manifest"
+    },
+    "approved_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When manifest was approved (ISO 8601)"
+    },
+    "locked": {
+      "type": "boolean",
+      "description": "Whether manifest is locked (cannot be modified without re-approval)"
+    },
+    "phase": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4,
+      "description": "Current build phase (0-4)"
+    },
+    "prd_file": {
+      "type": "string",
+      "description": "Path to source PRD/Spec document"
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total_routes"],
+      "properties": {
+        "total_routes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of routes in manifest"
+        },
+        "skeleton_complete": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Routes with skeleton files created"
+        },
+        "enhanced": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Routes with full implementation"
+        },
+        "tested": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Routes that have been tested"
+        },
+        "passing": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Routes passing tests"
+        },
+        "failing": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Routes failing tests"
+        },
+        "completion_percentage": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Overall completion percentage"
+        }
+      }
+    },
+    "modules": {
+      "type": "array",
+      "description": "List of feature modules",
+      "items": {
+        "type": "object",
+        "required": ["name", "routes"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Module name"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["dashboard", "admin", "api", "public", "auth"],
+            "description": "Route category"
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/route"
+            }
+          }
+        }
+      }
+    },
+    "navigation_links": {
+      "type": "array",
+      "description": "Navigation links that must work",
+      "items": {
+        "type": "object",
+        "required": ["from", "to"],
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Source route path"
+          },
+          "text": {
+            "type": "string",
+            "description": "Link text (e.g., 'Create New')"
+          },
+          "to": {
+            "type": "string",
+            "description": "Target route path"
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "Whether this link has been verified to work"
+          }
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "description": "Phase gate status",
+      "properties": {
+        "phase0_prd_approved": {
+          "type": "boolean"
+        },
+        "phase0_manifest_approved": {
+          "type": "boolean"
+        },
+        "phase1_skeleton_complete": {
+          "type": "boolean"
+        },
+        "phase1_build_passes": {
+          "type": "boolean"
+        },
+        "phase1_zero_404s": {
+          "type": "boolean"
+        },
+        "phase2_schema_complete": {
+          "type": "boolean"
+        },
+        "phase2_no_stubs": {
+          "type": "boolean"
+        },
+        "phase3_all_enhanced": {
+          "type": "boolean"
+        },
+        "phase3_all_tested": {
+          "type": "boolean"
+        },
+        "phase4_final_validation": {
+          "type": "boolean"
+        },
+        "phase4_user_confirmed": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "route": {
+      "type": "object",
+      "required": ["path", "file", "type", "status"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Route URL path"
+        },
+        "file": {
+          "type": "string",
+          "description": "Route file name (e.g., dashboard.leads._index.tsx)"
+        },
+        "description": {
+          "type": "string",
+          "description": "What this route does"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["index", "new", "detail", "edit", "action", "layout", "api"],
+          "description": "CRUD type"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+          "description": "HTTP method (for API routes)"
+        },
+        "auth": {
+          "type": "string",
+          "enum": ["none", "user", "admin"],
+          "description": "Required authentication level"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "skeleton", "enhanced", "tested", "passing", "failing", "warning"],
+          "description": "Current implementation status"
+        },
+        "testing": {
+          "type": ["object", "null"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["untested", "passing", "failing", "warning"]
+            },
+            "lastTestedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "httpStatus": {
+              "type": "integer"
+            },
+            "loadTime": {
+              "type": "integer",
+              "description": "Load time in milliseconds"
+            },
+            "consoleErrors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "screenshot": {
+              "type": "string",
+              "description": "Path to screenshot file"
+            }
+          }
+        }
+      }
+    }
+  }
+}

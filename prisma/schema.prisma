@@ -61,6 +61,10 @@ model User {
   conversations         ChatConversation[] @relation("UserConversations")
   assignedConversations ChatConversation[] @relation("AssignedConversations")
   chatMessages          ChatMessage[]
+  
+  // Power Industry Calculator relations
+  calculations          Calculation[]
+  generatedReports      Report[]
 
   @@index([email])
   @@index([role])
@@ -861,6 +865,108 @@ enum MessageContentType {
   IMAGE
   FILE
   SYSTEM
+}
+
+// ============================================
+// Power Industry Calculator - Core Models
+// ============================================
+
+model Calculation {
+  id          String          @id @default(cuid())
+  type        CalculationType
+  title       String?
+  description String?
+  inputs      Json            // Structured input data
+  outputs     Json            // Calculated results
+  assumptions Json?           // Calculation assumptions used
+  userId      String?
+  isPublic    Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reports Report[] @relation("CalculationReports")
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model Report {
+  id            String       @id @default(cuid())
+  title         String
+  description   String?
+  data          Json         // Full report data
+  format        ReportFormat @default(PDF)
+  fileName      String?
+  fileUrl       String?
+  fileSize      Int?
+  calculationId String?
+  userId        String?
+  projectName   String?
+  clientName    String?
+  preparedBy    String?
+  notes         String?      @db.Text
+  isPublic      Boolean      @default(false)
+  downloadCount Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  calculation Calculation? @relation("CalculationReports", fields: [calculationId], references: [id], onDelete: SetNull)
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([calculationId])
+  @@index([createdAt])
+}
+
+model Formula {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  category    String   // power, fuel, hybrid, cable, load
+  formula     String   @db.Text // The actual formula/equation
+  variables   Json     // Variable definitions
+  units       Json?    // Unit conversions
+  isActive    Boolean  @default(true)
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model ReportTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  category    String   // power, fuel, hybrid, cable, load, general
+  content     Json     // Template structure
+  styling     Json?    // CSS/styling options
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+}
+
+enum CalculationType {
+  POWER
+  FUEL
+  HYBRID
+  CABLE
+  LOAD_SET
+  CONVERSION
+}
+
+enum ReportFormat {
+  PDF
+  CSV
+  JSON
+  EXCEL
 }
 
 // ============================================
