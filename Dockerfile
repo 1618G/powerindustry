@@ -17,16 +17,17 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Copy package files
 COPY package.json pnpm-lock.yaml* ./
 
-# Install ALL dependencies (including dev)
-ENV HUSKY=0
-RUN pnpm install --frozen-lockfile --ignore-scripts || pnpm install --no-frozen-lockfile --ignore-scripts
-
-# Copy source code
+# Copy source code (before install so prisma postinstall works)
 COPY . .
 
-# Copy Prisma schema and generate client
-COPY prisma ./prisma
-RUN npx prisma generate
+# Install ALL dependencies (including dev)
+# Skip only husky prepare script, allow other scripts like prisma
+ENV HUSKY=0
+RUN pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
+
+# Generate Prisma client using project's version
+ENV DATABASE_URL="postgresql://user:pass@localhost:5432/db"
+RUN pnpm exec prisma generate
 
 # Build the application
 RUN pnpm build
@@ -50,22 +51,14 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 remix
 
-# Copy package files
-COPY package.json pnpm-lock.yaml* ./
+# Copy package files and node_modules from builder (includes generated Prisma client)
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
 
-# Install production dependencies only
-ENV HUSKY=0
-RUN pnpm install --prod --frozen-lockfile --ignore-scripts || pnpm install --prod --no-frozen-lockfile --ignore-scripts
-
-# Copy Prisma schema and regenerate for this platform
-# Prisma needs a DATABASE_URL at generate time (doesn't connect, just validates)
-COPY prisma ./prisma
-ENV DATABASE_URL="postgresql://user:pass@localhost:5432/db"
-RUN npx prisma generate
-
-# Copy built application from builder stage
+# Copy built application and other files from builder stage
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/prisma ./prisma
 
 # Create uploads directory with proper permissions
 RUN mkdir -p /app/uploads && chown remix:nodejs /app/uploads
