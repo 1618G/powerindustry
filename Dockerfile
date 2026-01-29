@@ -69,8 +69,9 @@ COPY prisma ./prisma
 ENV HUSKY=0
 RUN pnpm install --prod --frozen-lockfile --ignore-scripts || pnpm install --prod --no-frozen-lockfile --ignore-scripts
 
-# Generate Prisma client in production stage
-RUN pnpm exec prisma generate
+# Copy Prisma client from builder stage (already generated there)
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # Copy built application from builder stage
 COPY --from=builder /app/build ./build
