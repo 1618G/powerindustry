@@ -1,0 +1,49 @@
+---
+description: "Security rules for all files"
+globs: ["**/*.ts", "**/*.tsx"]
+alwaysApply: true
+---
+
+# Security Rules (Always Applied)
+
+## IDOR Prevention (CRITICAL)
+```typescript
+// ALWAYS verify ownership before accessing resources
+const resource = await requireOwnership(user.id, "resource", params.id);
+```
+
+## Authorization Levels
+1. `requireUser(request)` - Authenticated user
+2. `requireAdmin(request)` - Admin role
+3. `requireOwnership(userId, type, id)` - Resource owner
+
+## Input Validation
+```typescript
+// ALWAYS validate with Zod
+const result = schema.safeParse(data);
+if (!result.success) {
+  return json({ errors: formatZodErrors(result.error) }, { status: 400 });
+}
+```
+
+## Rate Limiting
+```typescript
+// ALWAYS rate limit actions
+const rateCheck = await withRateLimit(request, "endpoint", "category");
+if ("status" in rateCheck) return rateCheck;
+```
+
+## CSRF Protection
+```typescript
+// Forms must include CSRF token
+<FormSecurity csrfToken={csrfToken} />
+
+// Actions must validate
+await validateCsrfToken(request, formData.get("_csrf"));
+```
+
+## Never Do
+- Store secrets in code
+- Log sensitive data (passwords, tokens)
+- Trust client-side validation alone
+- Skip auth checks "temporarily"

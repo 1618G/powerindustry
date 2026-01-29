@@ -1,0 +1,154 @@
+---
+description: VPS deployment rules for ZZA platforms
+globs: deploy/**/*
+alwaysApply: false
+---
+
+# ZZA VPS Deployment Rules
+
+## Deployment Methodology
+
+This project uses ZZA VPS V6.0 Safety-First deployment methodology.
+
+### Core Principles
+
+1. **Git-based deployment** - Push to GitHub, pull on VPS
+2. **SSH key authentication** - No passwords in scripts
+3. **Automatic backups** - Database backup before every deployment
+4. **Additive schema changes** - ADD new data, don't delete
+
+### Deployment Scripts
+
+Located in `deploy/` folder:
+
+| Script | Purpose |
+|--------|---------|
+| `setup-ssh.sh` | One-time SSH key setup |
+| `deploy-v6.sh` | Deploy with safety features |
+| `rollback-v6.sh` | Rollback to previous version |
+| `backup-database.sh` | Database backup/restore |
+| `safe-schema-update.sh` | Schema changes (additive) |
+
+### Environment Variables
+
+Scripts use these environment variables:
+
+```bash
+APP_NAME=myapp           # Application name
+VPS_HOST=zza-vps         # SSH alias
+BRANCH=main              # Git branch
+DOMAIN=myapp.zzagroup.cloud  # Domain
+```
+
+### Quick Commands
+
+```bash
+# Deploy
+APP_NAME=myapp ./deploy/deploy-v6.sh
+
+# Rollback
+APP_NAME=myapp ./deploy/rollback-v6.sh v1.0.0
+
+# Backup
+APP_NAME=myapp ./deploy/backup-database.sh
+```
+
+## Critical Rules
+
+### NEVER Do These Without Explicit User Confirmation:
+
+1. **Delete database data** - Always backup first
+2. **Use --accept-data-loss** - Requires typed confirmation
+3. **Reset Prisma schema** - Use additive changes instead
+4. **Remove Docker volumes** - Data will be lost
+5. **Recreate VPS** - Destroys ALL deployed platforms
+
+### ALWAYS Do These:
+
+1. **Backup before schema changes** - `./deploy/backup-database.sh`
+2. **Verify SSH connection** - `ssh zza-vps 'echo connected'`
+3. **Check uncommitted changes** - `git status`
+4. **Verify HTTPS after deployment** - `curl -I https://domain`
+
+## Docker Standards
+
+### Dockerfile Requirements
+
+```dockerfile
+# Use slim, not alpine (Prisma compatibility)
+FROM node:20-slim
+
+# Install required packages
+RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
+
+# Multi-stage build for smaller images
+```
+
+### docker-compose.yml Requirements
+
+- Use environment variables for configuration
+- Include health checks
+- Configure Traefik labels
+- Use named volumes for persistent data
+- Separate networks (proxy for public, internal for DB)
+
+## Security Requirements
+
+### Never Commit:
+
+- `.env` files
+- API keys or secrets
+- Database credentials
+- SSL certificates/keys
+
+### Always Include:
+
+- `.env.example` with placeholder values
+- Health check endpoint (`/api/healthz`)
+- Rate limiting (Traefik middleware)
+- Security headers (HSTS, X-Frame-Options)
+
+## File Structure
+
+```
+deploy/
+├── docker-compose.yml     # Production compose file
+├── env.production.example # Example environment
+├── deploy-v6.sh           # Deploy script
+├── rollback-v6.sh         # Rollback script
+├── backup-database.sh     # Backup script
+├── safe-schema-update.sh  # Schema update script
+├── setup-ssh.sh           # SSH setup script
+└── traefik/
+    └── middlewares.yml    # Traefik config
+```
+
+## Troubleshooting
+
+### Deployment Failed
+
+```bash
+# Check container logs
+ssh zza-vps 'docker logs appname-app'
+
+# Check container status
+ssh zza-vps 'docker ps -a | grep appname'
+```
+
+### Database Connection Failed
+
+```bash
+# Check database container
+ssh zza-vps 'docker logs appname-db'
+
+# Verify DATABASE_URL
+ssh zza-vps 'grep DATABASE_URL ~/apps/appname/deploy/.env'
+```
+
+### SSL Not Working
+
+```bash
+# Wait 2-3 minutes for Let's Encrypt
+# Check Traefik logs
+ssh zza-vps 'docker logs traefik 2>&1 | grep appname'
+```

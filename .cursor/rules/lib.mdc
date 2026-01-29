@@ -1,0 +1,39 @@
+---
+description: "Library/infrastructure layer rules"
+globs: ["app/lib/**"]
+---
+
+# Library Layer Rules
+
+## Purpose
+Core infrastructure that other layers depend on.
+
+## Files & Responsibilities
+
+| File | Purpose | Can Import |
+|------|---------|------------|
+| `prisma.ts` | Database client | External only |
+| `config.server.ts` | Environment validation | External only |
+| `errors.ts` | Error classes | Nothing |
+| `redis.server.ts` | Cache + Pub/Sub | config |
+| `logger.server.ts` | Structured logging | config |
+| `queue.server.ts` | Background jobs | config, db |
+
+## Key Rules
+- These are foundational - changes affect everything
+- Keep dependencies minimal
+- Zod-validate all environment variables
+- Export typed interfaces
+
+## Config Pattern
+```typescript
+import { z } from "zod";
+
+const envSchema = z.object({
+  DATABASE_URL: z.string().url(),
+  SESSION_SECRET: z.string().min(32),
+  // ... validated env vars
+});
+
+export const config = envSchema.parse(process.env);
+```

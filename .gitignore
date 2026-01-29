@@ -1,0 +1,236 @@
+# ============================================
+# ZZA Build Platform - Comprehensive Git Ignore
+# V1.0 - Integrated with ZZA_VPS deployment standards
+# ============================================
+
+# -------------------------------------------
+# DEPENDENCIES
+# -------------------------------------------
+node_modules/
+.pnp/
+.pnp.js
+
+# -------------------------------------------
+# BUILD OUTPUTS
+# -------------------------------------------
+build/
+.cache/
+dist/
+.next/
+out/
+.remix/
+
+# -------------------------------------------
+# ENVIRONMENT & SECRETS (CRITICAL)
+# -------------------------------------------
+# Core environment files
+.env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+.env.production
+.env.test
+
+# Keep template files for reference
+!.env.example
+!env.example
+!env.*.example
+!*.template
+!*.example
+
+# Secrets directories
+secrets/
+.secrets/
+
+# Credential files
+*.key
+*.pem
+*.crt
+*.cert
+*.p12
+*.pfx
+*.jks
+*.keystore
+credentials.json
+service-account*.json
+
+# Credential documentation (NEVER commit these)
+*CREDENTIAL*.md
+*PASSWORD*.md
+*SECRET*.md
+SECURE_*.md
+*_CREDENTIALS.md
+LOGIN_INFO*.md
+USER_LOGIN*.md
+*PASSWORDS.md
+API_KEYS*.md
+
+# -------------------------------------------
+# SSL & SECURITY
+# -------------------------------------------
+acme.json
+*.csr
+ssl/
+certs/
+letsencrypt/
+
+# -------------------------------------------
+# DATABASE FILES
+# -------------------------------------------
+# SQLite
+*.db
+*.sqlite
+*.sqlite3
+prisma/*.db
+prisma/*.db-journal
+
+# Backups (CRITICAL - never commit database backups)
+backups/
+db_backups/
+*.sql
+*.sql.gz
+*.sql.zip
+*.rdb
+*.dump
+*.backup
+*.bak
+
+# -------------------------------------------
+# LOGS
+# -------------------------------------------
+logs/
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# -------------------------------------------
+# DOCKER
+# -------------------------------------------
+# Docker image archives (can be very large!)
+*.tar
+docker-images/
+*.image.tar.gz
+
+# Docker data volumes (if mounted locally)
+postgres_data/
+redis_data/
+data/
+volumes/
+
+# -------------------------------------------
+# TESTING & COVERAGE
+# -------------------------------------------
+coverage/
+.nyc_output/
+*.lcov
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# -------------------------------------------
+# IDE & EDITORS
+# -------------------------------------------
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.sublime-*
+*.swp
+*.swo
+*~
+
+# -------------------------------------------
+# OS FILES
+# -------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# -------------------------------------------
+# ARCHIVES & PACKAGES
+# -------------------------------------------
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# -------------------------------------------
+# DEPLOYMENT ARTIFACTS (DON'T PUSH)
+# -------------------------------------------
+# Reports from VPS scripts
+reports/
+deploy/reports/
+deploy/logs/
+
+# VPS-specific files that shouldn't be in repo
+deploy/.env
+deploy/*.log
+deploy/backups/
+
+# Security scan outputs
+security/scripts/reports/*.json
+security/scripts/reports/*.txt
+!security/scripts/reports/.gitkeep
+
+# -------------------------------------------
+# TEMPORARY FILES
+# -------------------------------------------
+*.tmp
+*.temp
+.temp/
+tmp/
+.cache/
+
+# -------------------------------------------
+# DOCUMENTATION (Optional - uncomment if needed)
+# -------------------------------------------
+# Uncomment to exclude docs that should only be local
+# ISSUES.md
+# TODO.md
+# PERSONAL_NOTES.md
+
+# -------------------------------------------
+# SCRIPTS OUTPUT (Development only)
+# -------------------------------------------
+scripts/output/
+scripts/testing/output/
+screenshots/
+
+# -------------------------------------------
+# OPTIONAL: Large Asset Files
+# -------------------------------------------
+# Uncomment if you don't want large assets in git
+# public/uploads/*
+# !public/uploads/.gitkeep
+# *.mp4
+# *.mov
+# *.avi
+# *.mkv
+
+# -------------------------------------------
+# EXCEPTIONS (Always Keep)
+# -------------------------------------------
+!.gitkeep
+!.env.example
+!env.example
+!deploy/env.production.example
+!deploy/.env.template

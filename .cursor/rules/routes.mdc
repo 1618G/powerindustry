@@ -1,0 +1,27 @@
+---
+description: "Route layer rules - Controllers for loaders/actions"
+globs: ["app/routes/**"]
+---
+
+# Route Layer Rules
+
+## CRITICAL
+- NEVER import `db` from `~/lib/prisma`
+- NO business logic - delegate to services
+- Use services for all data operations
+
+## Pattern
+```typescript
+import { someService } from "~/services/...";
+export async function loader({ request }) {
+  const user = await requireUser(request);
+  return json(await someService.getData(user.id));
+}
+```
+
+## Security Checklist
+- [ ] `requireUser(request)` for auth
+- [ ] `requireOwnership()` for resource access
+- [ ] Zod validation on all inputs
+- [ ] Rate limiting for actions
+- [ ] CSRF validation for form submissions

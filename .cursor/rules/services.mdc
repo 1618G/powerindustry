@@ -1,0 +1,27 @@
+---
+description: "Service layer rules - Business logic and orchestration"
+globs: ["app/services/**"]
+---
+
+# Service Layer Rules
+
+## CRITICAL
+- NEVER import `db` directly - use repositories
+- Services contain business logic and orchestration
+- Can import: repositories, other services, external APIs
+
+## Pattern
+```typescript
+import { userRepository } from "~/repositories";
+
+export async function getUserWithProfile(userId: string) {
+  const user = await userRepository.findById(userId);
+  if (!user) throw new NotFoundError("User not found");
+  // business logic here
+  return user;
+}
+```
+
+## Naming Convention
+- File: `feature.server.ts` or `feature.service.ts`
+- Functions: Verb-based (`createUser`, `updateProfile`, `validatePayment`)

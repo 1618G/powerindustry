@@ -1,0 +1,42 @@
+---
+description: "React component rules"
+globs: ["app/components/**"]
+---
+
+# Component Layer Rules
+
+## Naming
+- PascalCase: `UserProfile.tsx`
+- Folder grouping for complex components
+
+## Pattern
+```tsx
+interface Props {
+  user: User;
+  onUpdate?: (user: User) => void;
+}
+
+export function UserProfile({ user, onUpdate }: Props) {
+  return (
+    <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
+      {/* content */}
+    </div>
+  );
+}
+```
+
+## UI Standards (Dark Theme)
+```
+Background: gray-950
+Cards: gray-900
+Inputs: gray-800
+Borders: gray-700
+Text: white / gray-400
+Accent: red-500 (brand)
+```
+
+## Component Categories
+- `/components/ui/` - Base UI (Button, Input, Card)
+- `/components/forms/` - Form components
+- `/components/layout/` - Navigation, Footer
+- `/components/` - Feature-specific

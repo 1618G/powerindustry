@@ -1,0 +1,160 @@
+---
+description: Git ignore patterns and file exclusion rules
+globs: .gitignore, **/.gitignore
+alwaysApply: false
+---
+
+# Git Ignore Rules
+
+## Critical Files That MUST Be Gitignored
+
+These files should NEVER be committed to version control:
+
+### Environment & Secrets
+
+```gitignore
+# ALWAYS ignore - contains secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+.env.production
+.env.test
+
+# Credential files
+*.key
+*.pem
+*.crt
+credentials.json
+service-account*.json
+```
+
+### Credential Documentation
+
+```gitignore
+# NEVER commit files with passwords/secrets in names
+*CREDENTIAL*.md
+*PASSWORD*.md
+*SECRET*.md
+SECURE_*.md
+*_CREDENTIALS.md
+LOGIN_INFO*.md
+API_KEYS*.md
+```
+
+### Database Files
+
+```gitignore
+# Database dumps - can contain sensitive data
+backups/
+*.sql
+*.sql.gz
+*.sql.zip
+*.dump
+*.rdb
+
+# SQLite files
+*.db
+*.sqlite
+*.sqlite3
+```
+
+## Files to KEEP in Repository
+
+These files should be committed (they're templates without secrets):
+
+```gitignore
+# Keep these - they're templates
+!.env.example
+!env.example
+!env.*.example
+!*.template
+!deploy/env.production.example
+```
+
+## Common Patterns by Category
+
+### Build Outputs
+
+```gitignore
+build/
+dist/
+.cache/
+.next/
+out/
+.remix/
+```
+
+### Dependencies
+
+```gitignore
+node_modules/
+.pnp/
+```
+
+### Testing
+
+```gitignore
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+```
+
+### Docker
+
+```gitignore
+# Image archives (large files)
+*.tar
+docker-images/
+*.image.tar.gz
+
+# Local volume data
+postgres_data/
+redis_data/
+```
+
+### IDE & OS
+
+```gitignore
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+```
+
+## When Creating New Projects
+
+Always verify the `.gitignore` includes:
+
+1. All `.env` variants
+2. Database backup files
+3. Credential documentation files
+4. Build outputs
+5. Node modules
+6. IDE files
+7. OS files
+
+## Verification Command
+
+Run this to check for accidentally committed secrets:
+
+```bash
+# Check for common secret patterns
+git log --all -p | grep -i "api_key\|api-key\|apikey\|secret\|password\|token" | head -20
+```
+
+## Before Each Commit
+
+Verify sensitive files are not staged:
+
+```bash
+# Check staged files
+git status
+
+# Verify no .env files
+git diff --cached --name-only | grep -E "\.env" && echo "WARNING: .env file staged!"
+```

@@ -1,0 +1,249 @@
+{
+  "$schema": "./routes-manifest.schema.json",
+  "metadata": {
+    "platform": "[PLATFORM_NAME]",
+    "version": "1.0.0",
+    "generatedAt": null,
+    "lastTestedAt": null,
+    "crudPolicy": "ALL modules MUST have Index, New, Detail, Edit routes unless explicitly marked N/A"
+  },
+  "summary": {
+    "total": 0,
+    "passing": 0,
+    "failing": 0,
+    "untested": 0,
+    "byCategory": {
+      "public": { "total": 0, "passing": 0, "failing": 0, "untested": 0 },
+      "dashboard": { "total": 0, "passing": 0, "failing": 0, "untested": 0 },
+      "admin": { "total": 0, "passing": 0, "failing": 0, "untested": 0 },
+      "api": { "total": 0, "passing": 0, "failing": 0, "untested": 0 }
+    },
+    "moduleCompleteness": []
+  },
+  "routes": {
+    "public": [
+      {
+        "id": "homepage",
+        "path": "/",
+        "name": "Homepage",
+        "method": "GET",
+        "file": "_index.tsx",
+        "authRequired": false,
+        "testing": {
+          "status": "untested",
+          "lastTestedAt": null,
+          "consoleErrors": [],
+          "screenshotPath": null
+        }
+      },
+      {
+        "id": "login",
+        "path": "/login",
+        "name": "User Login",
+        "method": "GET",
+        "file": "login.tsx",
+        "authRequired": false,
+        "testing": {
+          "status": "untested",
+          "lastTestedAt": null,
+          "consoleErrors": [],
+          "screenshotPath": null
+        }
+      },
+      {
+        "id": "register",
+        "path": "/register",
+        "name": "User Registration",
+        "method": "GET",
+        "file": "register.tsx",
+        "authRequired": false,
+        "testing": {
+          "status": "untested",
+          "lastTestedAt": null,
+          "consoleErrors": [],
+          "screenshotPath": null
+        }
+      },
+      {
+        "id": "contact",
+        "path": "/contact",
+        "name": "Contact Page",
+        "method": "GET",
+        "file": "contact.tsx",
+        "authRequired": false,
+        "testing": {
+          "status": "untested",
+          "lastTestedAt": null,
+          "consoleErrors": [],
+          "screenshotPath": null
+        }
+      }
+    ],
+    "dashboard": [
+      {
+        "id": "dashboard-home",
+        "path": "/dashboard",
+        "name": "Dashboard Home",
+        "method": "GET",
+        "file": "dashboard._index.tsx",
+        "authRequired": true,
+        "testing": {
+          "status": "untested",
+          "lastTestedAt": null,
+          "consoleErrors": [],
+          "screenshotPath": null
+        }
+      },
+      {
+        "id": "dashboard-profile",
+        "path": "/dashboard/profile",
+        "name": "User Profile",
+        "method": "GET",
+        "file": "dashboard.profile.tsx",
+        "authRequired": true,
+        "testing": {
+          "status": "untested",
+          "lastTestedAt": null,
+          "consoleErrors": [],
+          "screenshotPath": null
+        }
+      }
+    ],
+    "admin": [
+      {
+        "id": "admin-home",
+        "path": "/admin",
+        "name": "Admin Dashboard",
+        "method": "GET",
+        "file": "admin._index.tsx",
+        "authRequired": true,
+        "roles": ["ADMIN"],
+        "testing": {
+          "status": "untested",
+          "lastTestedAt": null,
+          "consoleErrors": [],
+          "screenshotPath": null
+        }
+      }
+    ],
+    "api": [
+      {
+        "id": "api-health",
+        "path": "/api/healthz",
+        "name": "Health Check",
+        "method": "GET",
+        "file": "api.healthz.tsx",
+        "authRequired": false,
+        "testing": {
+          "status": "untested",
+          "lastTestedAt": null,
+          "httpStatus": null,
+          "responseTime": null
+        }
+      }
+    ]
+  },
+  "modules": [
+    {
+      "id": "example-module",
+      "name": "Example Module",
+      "description": "Template - copy this for each feature module",
+      "basePath": "/dashboard/example",
+      "crud": {
+        "index": {
+          "path": "/dashboard/example",
+          "file": "dashboard.example._index.tsx",
+          "status": "not_built",
+          "tested": false,
+          "navLinks": [
+            { "label": "Create New", "target": "/dashboard/example/new", "tested": false }
+          ]
+        },
+        "new": {
+          "path": "/dashboard/example/new",
+          "file": "dashboard.example.new.tsx",
+          "status": "not_built",
+          "tested": false,
+          "redirectsTo": "/dashboard/example/:id"
+        },
+        "detail": {
+          "path": "/dashboard/example/:id",
+          "file": "dashboard.example.$id.tsx",
+          "status": "not_built",
+          "tested": false,
+          "navLinks": [
+            { "label": "Edit", "target": "/dashboard/example/:id/edit", "tested": false },
+            { "label": "Back to List", "target": "/dashboard/example", "tested": false }
+          ]
+        },
+        "edit": {
+          "path": "/dashboard/example/:id/edit",
+          "file": "dashboard.example.$id.edit.tsx",
+          "status": "not_built",
+          "tested": false,
+          "redirectsTo": "/dashboard/example/:id"
+        },
+        "delete": {
+          "method": "POST",
+          "intent": "delete",
+          "onRoute": "/dashboard/example/:id",
+          "status": "not_built",
+          "tested": false,
+          "redirectsTo": "/dashboard/example"
+        }
+      },
+      "apiEndpoints": [
+        {
+          "method": "GET",
+          "path": "/api/example",
+          "purpose": "List all",
+          "status": "not_built"
+        },
+        {
+          "method": "POST",
+          "path": "/api/example",
+          "purpose": "Create new",
+          "status": "not_built"
+        },
+        {
+          "method": "GET",
+          "path": "/api/example/:id",
+          "purpose": "Get single",
+          "status": "not_built"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/example/:id",
+          "purpose": "Update",
+          "status": "not_built"
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/example/:id",
+          "purpose": "Delete",
+          "status": "not_built"
+        }
+      ],
+      "completeness": {
+        "index": false,
+        "new": false,
+        "detail": false,
+        "edit": false,
+        "delete": false,
+        "percentage": 0
+      }
+    }
+  ],
+  "navigationLinks": [
+    {
+      "source": "Sidebar",
+      "links": [
+        { "label": "Dashboard", "target": "/dashboard", "tested": false },
+        { "label": "Profile", "target": "/dashboard/profile", "tested": false },
+        { "label": "Settings", "target": "/dashboard/settings", "tested": false }
+      ]
+    }
+  ],
+  "issues": [],
+  "testingLog": []
+}

@@ -1,0 +1,459 @@
+# ZZA Platform Enterprise Starter - Development Rules (V5.0)
+
+## 🎯 PRIMARY GOAL
+**Build secure, scalable, ops-hardened enterprise platforms with true layer separation.**
+
+Every decision should prioritize:
+1. **Security First** - SOC II compliance, IDOR prevention, proper authorization
+2. **Layer Separation** - Routes → Services → Repositories → Database
+3. **Scalability** - Designed for growth from day one
+4. **Maintainability** - Clean code, proper abstractions, testing
+5. **Compliance** - GDPR, privacy, legal requirements
+6. **Complete Routes** - FULL CRUD for every module (no 404s!)
+
+---
+
+## ⚠️ CRITICAL: FULL CRUD FOR EVERY MODULE
+
+**For EVERY feature module, you MUST build ALL routes:**
+
+| Route Type | Pattern | File | Purpose |
+|------------|---------|------|---------|
+| **Index** | `/module` | `module._index.tsx` | List all items |
+| **New** | `/module/new` | `module.new.tsx` | Create form |
+| **Detail** | `/module/:id` | `module.$id.tsx` | View single item |
+| **Edit** | `/module/:id/edit` | `module.$id.edit.tsx` | Edit form |
+| **Delete** | POST action | On `$id.tsx` | Delete action |
+
+**NEVER build just an index route. If there's a list, there MUST be create/edit/view.**
+
+### Example: Leads Module
+
+```
+✅ CORRECT - Full CRUD:
+app/routes/dashboard.leads._index.tsx    → /dashboard/leads
+app/routes/dashboard.leads.new.tsx       → /dashboard/leads/new
+app/routes/dashboard.leads.$id.tsx       → /dashboard/leads/:id
+app/routes/dashboard.leads.$id.edit.tsx  → /dashboard/leads/:id/edit
+
+❌ WRONG - Index only:
+app/routes/dashboard.leads._index.tsx    → /dashboard/leads
+(User clicks "Create New" → 404!)
+```
+
+---
+
+## 🏗️ Architecture Layers (CRITICAL)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     ROUTES LAYER                        │
+│  app/routes/* - Loaders, Actions, UI Components         │
+│  CAN: Import services, middleware, config               │
+│  CANNOT: Import db, contain business logic              │
+└─────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                    SERVICES LAYER                       │
+│  app/services/* - Business logic, orchestration         │
+│  CAN: Import repositories, other services, external APIs│
+│  CANNOT: Import db directly                             │
+└─────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                  REPOSITORIES LAYER                     │
+│  app/repositories/* - Data access only                  │
+│  CAN: Import db from ~/lib/prisma                       │
+│  PURPOSE: Single source of truth for data access        │
+└─────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                    DATABASE LAYER                       │
+│  Prisma ORM → PostgreSQL                                │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Layer Rules
+```typescript
+// ❌ WRONG - Route imports db directly
+import { db } from "~/lib/prisma";
+export async function loader() {
+  const user = await db.user.findUnique({ where: { id } }); // VIOLATION!
+}
+
+// ✅ CORRECT - Route uses service
+import { getUserById } from "~/services/user.server";
+export async function loader() {
+  const user = await getUserById(id);
+}
+```
+
+---
+
+## 🔧 Tech Stack
+
+### Core
+- **Framework**: Remix.run (v2.x) + Vite
+- **Language**: TypeScript (strict mode)
+- **Runtime**: Node.js 20+
+- **Database**: PostgreSQL + Prisma ORM
+
+### Frontend
+- **UI**: React 18 with hooks
+- **Styling**: Tailwind CSS (dark theme)
+- **Icons**: FontAwesome Pro
+- **Forms**: Remix forms + Zod validation
+
+### Infrastructure Services
+- **Cache**: Redis (ioredis) with in-memory fallback
+- **Queue**: pg-boss (PostgreSQL-backed) for background jobs
+- **Logging**: Pino for structured logging
+- **Config**: Zod-validated environment variables
+
+### External Services
+- **Auth**: Clerk (primary) + Session-based fallback + OAuth + Magic Links
+- **Payments**: Stripe (subscriptions, one-time, Connect)
+- **AI**: OpenAI + Google Gemini (with usage tracking)
+- **Email**: SendGrid / Gmail (transactional)
+- **Storage**: Local / Google Cloud Storage / S3
+
+### Production Infrastructure
+- **Container**: Docker multi-stage build
+- **Orchestration**: Kubernetes (HPA 3-20 replicas)
+- **Caching**: Redis (persistent with AOF)
+- **Queue**: pg-boss (PostgreSQL-backed)
+- **Monitoring**: Health checks, liveness/readiness probes
+- **SSL**: Automatic via cert-manager + Let's Encrypt
+
+---
+
+## 📂 Project Structure
+
+```
+app/
+├── lib/                    # Core infrastructure
+│   ├── prisma.ts          # Database client
+│   ├── config.server.ts   # Environment validation
+│   ├── errors.ts          # Standardized errors
+│   ├── redis.server.ts    # Caching service
+│   ├── logger.server.ts   # Structured logging
+│   └── queue.server.ts    # Background jobs
+├── repositories/          # Data access layer (ONLY place to import db)
+│   ├── index.ts           # All repository exports
+│   ├── user.repository.ts
+│   ├── organization.repository.ts
+│   └── ...
+├── services/              # Business logic layer
+│   ├── user.server.ts
+│   ├── auth.service.ts
+│   ├── billing.service.ts
+│   └── ...
+├── routes/                # Controller layer (no db imports!)
+│   ├── dashboard.*.tsx
+│   ├── api.*.tsx
+│   └── ...
+├── middleware/            # Security middleware
+│   └── security.server.ts
+└── components/            # Shared UI components
+```
+
+---
+
+## 🛡️ Security Requirements (MANDATORY)
+
+### 1. IDOR Prevention (Critical)
+```typescript
+// ALWAYS verify ownership when accessing resources
+import { requireOwnership } from "~/services/authorization.server";
+
+const resource = await requireOwnership(user.id, "file", params.fileId);
+```
+
+### 2. Authorization Levels
+```typescript
+// Level 1: Authentication
+const user = await requireUser(request);
+
+// Level 2: Admin check
+const admin = await requireAdmin(request);
+
+// Level 3: Ownership check (CRITICAL for IDOR)
+const resource = await requireOwnership(user.id, resourceType, resourceId);
+```
+
+### 3. Input Validation
+```typescript
+// ALWAYS validate with Zod before processing
+import { z } from "zod";
+const schema = z.object({ ... });
+const result = schema.safeParse(data);
+if (!result.success) return json({ error: result.error }, { status: 400 });
+```
+
+### 4. Rate Limiting
+```typescript
+const rateCheck = await withRateLimit(request, "endpoint", "category");
+if ("status" in rateCheck) return rateCheck;
+```
+
+---
+
+## 📋 Development Patterns
+
+### Route Pattern (Controller)
+```typescript
+// app/routes/api.resource.tsx
+import { userService } from "~/services/user.server";
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const user = await requireUser(request);
+  const data = await userService.getUserData(user.id);
+  return json({ data });
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+  // 1. Rate limiting
+  const rateCheck = await withRateLimit(request, "resource", "api");
+  if ("status" in rateCheck) return rateCheck;
+
+  // 2. Authentication
+  const user = await requireUser(request);
+
+  // 3. Input validation
+  const result = schema.safeParse(await request.json());
+  if (!result.success) return json({ errors: result.error }, { status: 400 });
+
+  // 4. Business logic (via service)
+  const data = await someService.doSomething(result.data);
+
+  // 5. Return response
+  return json({ success: true, data });
+}
+```
+
+### Service Pattern (Business Logic)
+```typescript
+// app/services/feature.server.ts
+import { userRepository, organizationRepository } from "~/repositories";
+
+export async function doFeature(userId: string, data: FeatureInput) {
+  // Use repositories, NOT db directly
+  const user = await userRepository.findById(userId);
+  // Business logic here
+  return result;
+}
+```
+
+### Repository Pattern (Data Access)
+```typescript
+// app/repositories/user.repository.ts
+import { db } from "~/lib/prisma";
+
+class UserRepositoryClass {
+  async findById(id: string) {
+    return db.user.findUnique({ where: { id } });
+  }
+  // All database queries here
+}
+
+export const userRepository = new UserRepositoryClass();
+```
+
+---
+
+## 🎨 UI Standards
+
+### Color Scheme (Dark Theme)
+```
+Background: gray-950 (darkest)
+Cards: gray-900
+Inputs: gray-800
+Borders: gray-700
+Text Primary: white
+Text Secondary: gray-400
+Accent: red-500 (ZZA brand)
+Success: green-500
+Warning: yellow-500
+Info: blue-500
+```
+
+### Component Patterns
+```tsx
+// Card
+<div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
+
+// Primary Button
+<button className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg">
+
+// Input
+<input className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white">
+```
+
+---
+
+## ⚡ Commands
+
+```bash
+# Development
+pnpm dev              # Start dev server
+pnpm build            # Build for production
+pnpm start            # Start production server
+
+# Database
+pnpm db:push          # Push schema to DB
+pnpm db:migrate       # Run migrations
+pnpm db:studio        # Open Prisma Studio
+pnpm db:generate      # Generate Prisma client
+
+# Testing
+pnpm test             # Run tests
+pnpm test:routes      # Test all routes
+pnpm test:coverage    # Run with coverage
+pnpm test:ci          # CI mode
+
+# Background Jobs
+pnpm jobs:worker      # Start job worker
+
+# Docker (Local Development)
+docker-compose up -d  # Start PostgreSQL + Redis
+docker-compose down   # Stop services
+
+# Kubernetes (Production)
+kubectl apply -f k8s/ # Deploy to K8s
+kubectl scale deployment zza-app --replicas=5  # Manual scale
+kubectl rollout status deployment/zza-app      # Check deployment
+```
+
+---
+
+## ⚠️ Red Flags
+
+| If You See This... | Do This Instead... |
+|-------------------|---------------------|
+| `import { db } from` in a route | Use a service function |
+| `import { db } from` in a service | Use a repository |
+| Business logic in a route | Move to a service |
+| Direct SQL queries | Use Prisma via repository |
+| `npm install` | Use `pnpm install` |
+| JWT tokens | Use session-based auth |
+| `any` type | Define proper TypeScript types |
+
+---
+
+## 🤖 AI Efficiency Rules (Token Optimization)
+
+### Response Guidelines
+- Be concise. Skip preamble, summaries, and recaps.
+- Don't repeat code I just provided.
+- Don't explain things I didn't ask about.
+- Use bullet points over paragraphs.
+- Skip "I'll help you with..." - just do it.
+- No apologetic language or filler phrases.
+- Reference files by name, don't re-quote large sections.
+
+### Before Reading Files
+- Check if file content is already in context before using Read tool.
+- Read only the lines you need, not entire files when possible.
+- Don't read files just to confirm they exist.
+
+### Code Output
+- Show only changed/new code, not entire files.
+- Use `// ... existing code ...` for unchanged sections.
+- One code block per concept, not multiple small ones.
+
+### Questions & Clarifications
+- Ask compound questions when clarification needed (not one at a time).
+- Propose a solution with your assumption stated rather than asking first.
+- If uncertain, make a reasonable choice and note it briefly.
+
+### Layer-Specific Rules
+See `.cursor/rules/*.mdc` for context-specific rules that apply automatically:
+- `routes.mdc` - Route/controller patterns
+- `services.mdc` - Business logic patterns
+- `repositories.mdc` - Data access patterns
+- `middleware.mdc` - Security middleware
+- `lib.mdc` - Infrastructure code
+- `components.mdc` - React components
+- `security.mdc` - Security (always applied)
+- `codacy.mdc` - Code quality analysis
+
+---
+
+## 🧪 Testing Methodology (V5.0)
+
+### Testing Files (Included in Template)
+
+| File | Purpose |
+|------|---------|
+| `ROUTES.md` | Human-readable route documentation + status |
+| `routes-manifest.json` | Machine-readable for tools/agents |
+| `ISSUES.md` | Known issues and fix tracking |
+| `tests/testing-dashboard.html` | Interactive visual dashboard |
+| `scripts/test-routes.ts` | Automated testing script |
+
+### Testing Phases
+
+| Phase | When | Command |
+|-------|------|---------|
+| **Post-Skeleton** | After routes created | `pnpm test:routes` |
+| **During Dev** | After each feature | `pnpm test:routes --category=X` |
+| **Pre-Deploy** | Before deployment | `pnpm test:routes --report` |
+
+### Route Status Definitions
+
+| Status | Icon | Meaning |
+|--------|------|---------|
+| Passing | ✅ | Route works correctly |
+| Failing | ❌ | Route has errors |
+| Untested | ⬜ | Not yet tested |
+| Warning | ⚠️ | Works but has issues |
+
+### Issue Severity Levels
+
+| Severity | When | Action |
+|----------|------|--------|
+| 🔴 Critical | App crash, 500 error | Fix immediately |
+| 🟠 High | Feature broken, 404 | Fix before deploy |
+| 🟡 Medium | Partial issues | Fix soon |
+| 🟢 Low | Minor/cosmetic | Fix eventually |
+
+### Testing Commands
+
+```bash
+# Run all route tests
+pnpm test:routes
+
+# Test with verbose output
+pnpm test:routes --verbose
+
+# Test specific category
+pnpm test:routes --category=dashboard
+
+# Open testing dashboard
+open tests/testing-dashboard.html
+```
+
+### Pre-Deployment Testing Checklist
+
+- [ ] All routes tested (0 untested)
+- [ ] No critical/high severity issues
+- [ ] Console errors resolved
+- [ ] ROUTES.md fully updated
+- [ ] `pnpm test:routes` passes
+
+### Subagents for Testing
+
+| Subagent | Purpose |
+|----------|---------|
+| `route-tester` | Systematic route testing |
+| `issue-tracker` | Issue documentation and tracking |
+
+---
+
+**Version**: 4.0.0
+**Updated**: January 26, 2026
+**Architecture**: Enterprise Layered (Routes → Services → Repositories → DB)
+**Testing**: V5.0 Methodology with route-tester and issue-tracker subagents

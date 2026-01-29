@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Testing Dashboard</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --border: #334155;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --untested: #6b7280;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--info);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            background: #334155;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+        }
+        
+        .stat-value {
+            font-size: 36px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        
+        .stat-card.total .stat-value { color: var(--info); }
+        .stat-card.passing .stat-value { color: var(--success); }
+        .stat-card.failing .stat-value { color: var(--error); }
+        .stat-card.untested .stat-value { color: var(--untested); }
+        .stat-card.coverage .stat-value { color: var(--warning); }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 16px;
+        }
+        
+        .tab {
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            border: none;
+            font-weight: 500;
+        }
+        
+        .tab.active {
+            background: var(--info);
+            color: white;
+        }
+        
+        .tab:hover:not(.active) {
+            background: var(--bg-card);
+            color: var(--text);
+        }
+        
+        /* Route Table */
+        .routes-table {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        th {
+            background: #0f172a;
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        tr:hover td {
+            background: rgba(59, 130, 246, 0.05);
+        }
+        
+        /* Status Badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .status-badge.passing {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+        }
+        
+        .status-badge.failing {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+        
+        .status-badge.untested {
+            background: rgba(107, 114, 128, 0.1);
+            color: var(--untested);
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .status-badge.passing .status-dot { background: var(--success); }
+        .status-badge.failing .status-dot { background: var(--error); }
+        .status-badge.untested .status-dot { background: var(--untested); }
+        
+        /* Method Badge */
+        .method-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: monospace;
+        }
+        
+        .method-badge.get { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+        .method-badge.post { background: rgba(59, 130, 246, 0.2); color: var(--info); }
+        .method-badge.put { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .method-badge.delete { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+        
+        /* Path */
+        .route-path {
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            color: var(--info);
+        }
+        
+        /* Auth indicator */
+        .auth-badge {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        
+        .auth-badge.required {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+        
+        .auth-badge.public {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+        
+        /* Actions */
+        .route-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .action-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            background: var(--bg-dark);
+            color: var(--text);
+            border: 1px solid var(--border);
+            cursor: pointer;
+        }
+        
+        .action-btn:hover {
+            border-color: var(--info);
+            color: var(--info);
+        }
+        
+        /* Issues Panel */
+        .issues-panel {
+            margin-top: 32px;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 24px;
+        }
+        
+        .issues-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .issues-header h2 {
+            font-size: 18px;
+        }
+        
+        .issue-card {
+            background: var(--bg-dark);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid var(--error);
+        }
+        
+        .issue-card.warning {
+            border-left-color: var(--warning);
+        }
+        
+        .issue-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .issue-path {
+            font-family: monospace;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        
+        .issue-details {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        
+        /* Console Log */
+        .console-log {
+            background: #000;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 12px;
+            font-family: monospace;
+            font-size: 13px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .console-error {
+            color: var(--error);
+        }
+        
+        .console-warn {
+            color: var(--warning);
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 48px;
+            color: var(--text-muted);
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        /* Footer */
+        footer {
+            margin-top: 48px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .stats-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .header-actions {
+                flex-direction: column;
+            }
+            
+            table {
+                display: block;
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>🧪 Route Testing Dashboard</h1>
+                <p style="color: var(--text-muted); margin-top: 4px;">Platform: <strong id="platform-name">[PLATFORM_NAME]</strong> • Last tested: <span id="last-tested">Never</span></p>
+            </div>
+            <div class="header-actions">
+                <button class="btn-secondary" onclick="loadManifest()">🔄 Refresh</button>
+                <button class="btn-secondary" onclick="exportReport()">📄 Export Report</button>
+                <button class="btn-primary" onclick="runAllTests()">▶️ Run All Tests</button>
+            </div>
+        </header>
+        
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card total">
+                <div class="stat-value" id="stat-total">0</div>
+                <div class="stat-label">Total Routes</div>
+            </div>
+            <div class="stat-card passing">
+                <div class="stat-value" id="stat-passing">0</div>
+                <div class="stat-label">Passing</div>
+            </div>
+            <div class="stat-card failing">
+                <div class="stat-value" id="stat-failing">0</div>
+                <div class="stat-label">Failing</div>
+            </div>
+            <div class="stat-card untested">
+                <div class="stat-value" id="stat-untested">0</div>
+                <div class="stat-label">Untested</div>
+            </div>
+            <div class="stat-card coverage">
+                <div class="stat-value" id="stat-coverage">0%</div>
+                <div class="stat-label">Coverage</div>
+            </div>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-category="all">All Routes</button>
+            <button class="tab" data-category="public">Public</button>
+            <button class="tab" data-category="dashboard">Dashboard</button>
+            <button class="tab" data-category="admin">Admin</button>
+            <button class="tab" data-category="api">API</button>
+            <button class="tab" data-category="failing">❌ Failing Only</button>
+        </div>
+        
+        <!-- Routes Table -->
+        <div class="routes-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Route</th>
+                        <th>Method</th>
+                        <th>Auth</th>
+                        <th>Last Tested</th>
+                        <th>Load Time</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="routes-tbody">
+                    <!-- Routes will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Issues Panel -->
+        <div class="issues-panel">
+            <div class="issues-header">
+                <h2>🐛 Known Issues (<span id="issues-count">0</span>)</h2>
+                <button class="btn-secondary" onclick="clearIssues()">Clear All</button>
+            </div>
+            <div id="issues-list">
+                <div class="empty-state">
+                    <div class="empty-state-icon">✨</div>
+                    <p>No issues found! All routes are working correctly.</p>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>ZZA Build Testing Dashboard • Generated by route-tester subagent</p>
+            <p style="margin-top: 8px;">Update manifest: <code>pnpm test:routes --update-manifest</code></p>
+        </footer>
+    </div>
+    
+    <script>
+        // Load and display routes manifest
+        let manifest = null;
+        
+        async function loadManifest() {
+            try {
+                const response = await fetch('./routes-manifest.json');
+                manifest = await response.json();
+                renderDashboard();
+            } catch (error) {
+                console.error('Failed to load manifest:', error);
+                // Try to load from window if embedded
+                if (window.routesManifest) {
+                    manifest = window.routesManifest;
+                    renderDashboard();
+                }
+            }
+        }
+        
+        function renderDashboard() {
+            if (!manifest) return;
+            
+            // Update platform name
+            document.getElementById('platform-name').textContent = manifest.metadata.platform || 'Unknown';
+            document.getElementById('last-tested').textContent = manifest.metadata.lastTestedAt 
+                ? new Date(manifest.metadata.lastTestedAt).toLocaleString()
+                : 'Never';
+            
+            // Update stats
+            document.getElementById('stat-total').textContent = manifest.summary.total;
+            document.getElementById('stat-passing').textContent = manifest.summary.passing;
+            document.getElementById('stat-failing').textContent = manifest.summary.failing;
+            document.getElementById('stat-untested').textContent = manifest.summary.untested;
+            
+            const coverage = manifest.summary.total > 0 
+                ? Math.round((manifest.summary.passing / manifest.summary.total) * 100)
+                : 0;
+            document.getElementById('stat-coverage').textContent = coverage + '%';
+            
+            // Render routes
+            renderRoutes('all');
+            
+            // Render issues
+            renderIssues();
+        }
+        
+        function renderRoutes(category) {
+            const tbody = document.getElementById('routes-tbody');
+            tbody.innerHTML = '';
+            
+            const allRoutes = [];
+            
+            // Flatten all routes
+            ['public', 'dashboard', 'admin', 'api'].forEach(cat => {
+                if (manifest.routes[cat]) {
+                    manifest.routes[cat].forEach(route => {
+                        allRoutes.push({ ...route, category: cat });
+                    });
+                }
+            });
+            
+            // Filter by category
+            let filteredRoutes = allRoutes;
+            if (category !== 'all') {
+                if (category === 'failing') {
+                    filteredRoutes = allRoutes.filter(r => r.testing?.status === 'failing');
+                } else {
+                    filteredRoutes = allRoutes.filter(r => r.category === category);
+                }
+            }
+            
+            // Render each route
+            filteredRoutes.forEach(route => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <span class="status-badge ${route.testing?.status || 'untested'}">
+                            <span class="status-dot"></span>
+                            ${(route.testing?.status || 'untested').charAt(0).toUpperCase() + (route.testing?.status || 'untested').slice(1)}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="route-path">${route.path}</div>
+                        <div style="color: var(--text-muted); font-size: 13px;">${route.name}</div>
+                    </td>
+                    <td>
+                        <span class="method-badge ${(route.method || 'GET').toLowerCase()}">${route.method || 'GET'}</span>
+                    </td>
+                    <td>
+                        <span class="auth-badge ${route.authRequired ? 'required' : 'public'}">
+                            ${route.authRequired ? '🔒 Required' : '🌐 Public'}
+                        </span>
+                    </td>
+                    <td style="color: var(--text-muted); font-size: 13px;">
+                        ${route.testing?.lastTestedAt ? new Date(route.testing.lastTestedAt).toLocaleDateString() : '-'}
+                    </td>
+                    <td style="font-family: monospace; font-size: 13px;">
+                        ${route.testing?.loadTime ? route.testing.loadTime + 'ms' : '-'}
+                    </td>
+                    <td>
+                        <div class="route-actions">
+                            <button class="action-btn" onclick="testRoute('${route.id}')">Test</button>
+                            <button class="action-btn" onclick="viewDetails('${route.id}')">Details</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            if (filteredRoutes.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <p>No routes found in this category</p>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+        
+        function renderIssues() {
+            const issuesList = document.getElementById('issues-list');
+            const issuesCount = document.getElementById('issues-count');
+            
+            if (!manifest.issues || manifest.issues.length === 0) {
+                issuesCount.textContent = '0';
+                issuesList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">✨</div>
+                        <p>No issues found! All routes are working correctly.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            issuesCount.textContent = manifest.issues.length;
+            issuesList.innerHTML = manifest.issues.map(issue => `
+                <div class="issue-card ${issue.severity === 'warning' ? 'warning' : ''}">
+                    <div class="issue-title">${issue.title}</div>
+                    <div class="issue-path">${issue.route}</div>
+                    <div class="issue-details">${issue.description}</div>
+                    ${issue.consoleErrors ? `
+                        <div class="console-log">
+                            ${issue.consoleErrors.map(e => `<div class="console-error">${e}</div>`).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+        
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                renderRoutes(tab.dataset.category);
+            });
+        });
+        
+        // Placeholder functions
+        function testRoute(routeId) {
+            alert(`Testing route: ${routeId}\n\nIn production, this would run automated tests for this route.`);
+        }
+        
+        function viewDetails(routeId) {
+            const route = findRoute(routeId);
+            if (route) {
+                alert(JSON.stringify(route, null, 2));
+            }
+        }
+        
+        function findRoute(routeId) {
+            for (const category of ['public', 'dashboard', 'admin', 'api']) {
+                const found = manifest.routes[category]?.find(r => r.id === routeId);
+                if (found) return found;
+            }
+            return null;
+        }
+        
+        function runAllTests() {
+            alert('Running all tests...\n\nIn production, this would:\n1. Navigate to each route\n2. Capture screenshots\n3. Check console errors\n4. Verify expected elements\n5. Update the manifest');
+        }
+        
+        function exportReport() {
+            const report = {
+                generatedAt: new Date().toISOString(),
+                ...manifest
+            };
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `route-test-report-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+        }
+        
+        function clearIssues() {
+            if (confirm('Clear all issues?')) {
+                manifest.issues = [];
+                renderIssues();
+            }
+        }
+        
+        // Initialize
+        loadManifest();
+    </script>
+</body>
+</html>

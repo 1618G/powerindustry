@@ -1,0 +1,1031 @@
+// ZZA Platform Starter - Enterprise Prisma Schema
+// SOC II Compliant | Marketplace & SaaS Ready
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// User & Authentication (SOC II Compliant)
+// ============================================
+
+model User {
+  id              String      @id @default(cuid())
+  email           String      @unique
+  passwordHash    String?     // Optional for OAuth-only users
+  name            String?
+  role            Role        @default(USER)
+  userType        UserType    @default(PERSONAL)
+  emailVerified   Boolean     @default(false)
+  phoneVerified   Boolean     @default(false)
+  mfaEnabled      Boolean     @default(false)
+  mfaSecret       String?     // Encrypted TOTP secret
+  isActive        Boolean     @default(true)
+  isSuspended     Boolean     @default(false)
+  suspendedReason String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  lastLoginAt     DateTime?
+  lastLoginIp     String?
+  passwordChangedAt DateTime?
+  failedLoginAttempts Int     @default(0)
+  lockedUntil     DateTime?
+
+  // Relations
+  profile           Profile?
+  organization      Organization?     @relation(fields: [organizationId], references: [id])
+  organizationId    String?
+  ownedOrganizations Organization[]   @relation("OrganizationOwner")
+  sessions          Session[]
+  passwordResets    PasswordReset[]
+  magicLinks        MagicLink[]
+  oauthAccounts     OAuthAccount[]
+  contactMessages   ContactMessage[]
+  files             File[]
+  auditLogs         AuditLog[]
+  subscriptions     Subscription[]
+  payments          Payment[]
+  apiKeys           ApiKey[]
+  aiUsage           AIUsage[]
+  dataExportRequests DataExportRequest[]
+  consentRecords    ConsentRecord[]
+  notifications     Notification[]
+  
+  // Chat relations
+  conversations         ChatConversation[] @relation("UserConversations")
+  assignedConversations ChatConversation[] @relation("AssignedConversations")
+  chatMessages          ChatMessage[]
+
+  @@index([email])
+  @@index([role])
+  @@index([userType])
+  @@index([isActive])
+  @@index([organizationId])
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  bio         String?
+  avatar      String?
+  phone       String?
+  company     String?
+  jobTitle    String?
+  location    String?
+  website     String?
+  timezone    String?  @default("UTC")
+  language    String?  @default("en")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// Organization / Business Accounts
+// ============================================
+
+model Organization {
+  id              String           @id @default(cuid())
+  name            String
+  slug            String           @unique
+  type            OrganizationType @default(BUSINESS)
+  taxId           String?          // VAT/EIN
+  address         Json?            // Structured address
+  phone           String?
+  website         String?
+  logo            String?
+  isVerified      Boolean          @default(false)
+  verifiedAt      DateTime?
+  stripeCustomerId    String?      @unique
+  stripeAccountId     String?      @unique  // For marketplace Connect
+  stripeAccountStatus String?
+  billingEmail    String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relations
+  ownerId       String
+  owner         User              @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  members       User[]
+  subscriptions Subscription[]
+  payments      Payment[]
+  apiKeys       ApiKey[]
+  aiUsage       AIUsage[]
+  webhooks      Webhook[]
+  invitations   Invitation[]
+
+  @@index([slug])
+  @@index([ownerId])
+  @@index([stripeCustomerId])
+}
+
+// ============================================
+// Authentication & Sessions
+// ============================================
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  token      String   @unique  // Hashed session token
+  expiresAt  DateTime
+  ipAddress  String?
+  userAgent  String?
+  deviceType String?
+  location   String?
+  isValid    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique  // Hashed token
+  expiresAt DateTime
+  usedAt    DateTime?
+  ipAddress String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+model OAuthAccount {
+  id             String    @id @default(cuid())
+  userId         String
+  provider       String
+  providerUserId String
+  accessToken    String?   @db.Text  // Encrypted
+  refreshToken   String?   @db.Text  // Encrypted
+  expiresAt      DateTime?
+  scope          String?
+  tokenType      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+model MagicLink {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique  // Hashed token
+  expiresAt DateTime
+  usedAt    DateTime?
+  ipAddress String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+// ============================================
+// Payments & Subscriptions (Stripe)
+// ============================================
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String?
+  organizationId       String?
+  stripeSubscriptionId String             @unique
+  stripeCustomerId     String
+  stripePriceId        String
+  status               SubscriptionStatus
+  plan                 String             // Plan name/tier
+  interval             String             // monthly, yearly
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  canceledAt           DateTime?
+  trialStart           DateTime?
+  trialEnd             DateTime?
+  metadata             Json?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([stripeSubscriptionId])
+  @@index([status])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  userId            String?
+  organizationId    String?
+  stripePaymentId   String        @unique
+  stripeCustomerId  String
+  amount            Int           // In cents
+  currency          String        @default("usd")
+  status            PaymentStatus
+  type              PaymentType   @default(ONE_TIME)
+  description       String?
+  receiptUrl        String?
+  invoiceId         String?
+  refundedAmount    Int?
+  metadata          Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([stripePaymentId])
+}
+
+model Plan {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String?
+  stripePriceId   String   @unique
+  stripeProductId String
+  price           Int      // In cents
+  currency        String   @default("usd")
+  interval        String   // monthly, yearly
+  features        Json     // Array of feature strings
+  limits          Json     // { users: 5, storage: 10GB, etc. }
+  isActive        Boolean  @default(true)
+  isPopular       Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+// ============================================
+// AI Services (OpenAI, Gemini, etc.)
+// ============================================
+
+model AIUsage {
+  id             String   @id @default(cuid())
+  userId         String?
+  organizationId String?
+  provider       String   // openai, gemini, anthropic
+  model          String   // gpt-4, gemini-pro, etc.
+  operation      String   // chat, completion, embedding, image
+  inputTokens    Int
+  outputTokens   Int
+  totalTokens    Int
+  cost           Float    // In cents
+  latencyMs      Int?
+  success        Boolean  @default(true)
+  error          String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([createdAt])
+}
+
+// ============================================
+// API Keys (for user/org API access)
+// ============================================
+
+model ApiKey {
+  id             String    @id @default(cuid())
+  userId         String?
+  organizationId String?
+  name           String
+  keyHash        String    @unique  // Hashed API key
+  keyPrefix      String    // First 8 chars for identification
+  permissions    Json      // Array of allowed operations
+  rateLimit      Int       @default(1000)  // Requests per hour
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([keyHash])
+  @@index([userId])
+  @@index([organizationId])
+}
+
+// ============================================
+// SOC II Compliance & Audit
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String   // Action performed
+  resource    String?  // Resource type
+  resourceId  String?  // Resource ID
+  oldValue    Json?    // Previous value (for changes)
+  newValue    Json?    // New value (for changes)
+  details     Json?
+  ipAddress   String?
+  userAgent   String?
+  sessionId   String?
+  severity    String   @default("info")  // info, warning, error, critical
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+  @@index([severity])
+}
+
+model ConsentRecord {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // terms, privacy, marketing, cookies
+  version     String   // Document version
+  accepted    Boolean
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+}
+
+model DataExportRequest {
+  id          String            @id @default(cuid())
+  userId      String
+  status      DataExportStatus  @default(PENDING)
+  format      String            @default("json")
+  downloadUrl String?
+  expiresAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model SecurityEvent {
+  id          String   @id @default(cuid())
+  type        String   // login_failed, suspicious_activity, etc.
+  severity    String   // low, medium, high, critical
+  description String
+  ipAddress   String?
+  userAgent   String?
+  userId      String?
+  resolved    Boolean  @default(false)
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+  @@index([severity])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ============================================
+// File Management
+// ============================================
+
+model File {
+  id            String     @id @default(cuid())
+  userId        String?
+  filename      String
+  storagePath   String
+  storageType   String     @default("local")  // local, s3, gcs
+  mimeType      String
+  size          Int
+  type          FileType   @default(DOCUMENT)
+  status        FileStatus @default(PROCESSING)
+  width         Int?
+  height        Int?
+  duration      Int?
+  thumbnailPath String?
+  optimizedPath String?
+  metadata      Json?
+  isPublic      Boolean    @default(false)
+  scanStatus    String?    // pending, clean, infected
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+}
+
+// ============================================
+// Rate Limiting & Email
+// ============================================
+
+model RateLimitEntry {
+  id          String   @id @default(cuid())
+  identifier  String
+  endpoint    String
+  count       Int      @default(1)
+  windowStart DateTime @default(now())
+  expiresAt   DateTime
+
+  @@unique([identifier, endpoint])
+  @@index([identifier])
+  @@index([expiresAt])
+}
+
+model EmailQueue {
+  id          String      @id @default(cuid())
+  to          String
+  from        String?
+  subject     String
+  htmlContent String      @db.Text
+  textContent String?     @db.Text
+  status      EmailStatus @default(PENDING)
+  attempts    Int         @default(0)
+  maxAttempts Int         @default(3)
+  lastError   String?     @db.Text
+  sentAt      DateTime?
+  scheduledAt DateTime    @default(now())
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+// ============================================
+// System Health & Monitoring
+// ============================================
+
+model SystemHealth {
+  id        String   @id @default(cuid())
+  service   String
+  status    String
+  latency   Int?
+  details   Json?
+  checkedAt DateTime @default(now())
+
+  @@index([service])
+  @@index([checkedAt])
+}
+
+model ContactMessage {
+  id        String        @id @default(cuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  status    MessageStatus @default(NEW)
+  userId    String?
+  ipAddress String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([email])
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  type      String   @default("string")
+  encrypted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+// ============================================
+// Enums
+// ============================================
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserType {
+  PERSONAL
+  BUSINESS
+}
+
+enum OrganizationType {
+  BUSINESS
+  ENTERPRISE
+  NONPROFIT
+  GOVERNMENT
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  UNPAID
+  TRIALING
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentType {
+  ONE_TIME
+  SUBSCRIPTION
+  MARKETPLACE
+}
+
+enum DataExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+enum MessageStatus {
+  NEW
+  READ
+  REPLIED
+  ARCHIVED
+}
+
+enum FileType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  AUDIO
+  OTHER
+}
+
+enum FileStatus {
+  PROCESSING
+  READY
+  FAILED
+  DELETED
+}
+
+enum EmailStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
+// ============================================
+// Notifications
+// ============================================
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String    // in_app, email, push
+  title     String
+  body      String
+  data      Json?
+  read      Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
+}
+
+// ============================================
+// Webhooks (Outgoing)
+// ============================================
+
+model Webhook {
+  id            String            @id @default(cuid())
+  organizationId String
+  url           String
+  events        String[]
+  secret        String
+  isActive      Boolean           @default(true)
+  failCount     Int               @default(0)
+  lastSuccess   DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries    WebhookDelivery[]
+
+  @@index([organizationId])
+  @@index([isActive])
+}
+
+model WebhookDelivery {
+  id         String   @id @default(cuid())
+  webhookId  String
+  event      String
+  payload    Json
+  status     Int      // HTTP status code
+  response   String?  @db.Text
+  attempts   Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([createdAt])
+}
+
+// ============================================
+// Team Invitations
+// ============================================
+
+model Invitation {
+  id             String    @id @default(cuid())
+  organizationId String
+  email          String
+  role           String
+  token          String    @unique
+  invitedBy      String
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([token])
+  @@index([email])
+}
+
+// ============================================
+// Live Chat System (Intercom-like)
+// ============================================
+
+model ChatConversation {
+  id              String    @id @default(cuid())
+  
+  // Visitor or authenticated user
+  userId          String?
+  visitorId       String?   // For anonymous visitors
+  visitorEmail    String?
+  visitorName     String?
+  
+  // Conversation metadata
+  subject         String?
+  status          ChatStatus @default(OPEN)
+  priority        ChatPriority @default(NORMAL)
+  
+  // Assignment
+  assignedToId    String?
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  closedAt        DateTime?
+  lastMessageAt   DateTime  @default(now())
+  
+  // Visitor tracking
+  source          String?   // page URL where chat was initiated
+  userAgent       String?
+  ipAddress       String?
+  country         String?
+  
+  // Relations
+  user            User?     @relation("UserConversations", fields: [userId], references: [id])
+  assignedTo      User?     @relation("AssignedConversations", fields: [assignedToId], references: [id])
+  messages        ChatMessage[]
+  tags            ChatTag[]
+  
+  @@index([userId])
+  @@index([visitorId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([lastMessageAt])
+  @@index([createdAt])
+}
+
+model ChatMessage {
+  id              String    @id @default(cuid())
+  conversationId  String
+  
+  // Sender (either user or system)
+  senderId        String?
+  senderType      SenderType
+  senderName      String?
+  
+  // Content
+  content         String    @db.Text
+  contentType     MessageContentType @default(TEXT)
+  
+  // File attachments
+  attachments     Json?     // Array of { name, url, type, size }
+  
+  // Status tracking
+  isRead          Boolean   @default(false)
+  readAt          DateTime?
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  conversation    ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender          User?     @relation(fields: [senderId], references: [id])
+  
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@index([isRead])
+}
+
+model ChatTag {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  color           String    @default("#6366f1")
+  
+  conversations   ChatConversation[]
+  
+  @@index([name])
+}
+
+model ChatQuickReply {
+  id              String    @id @default(cuid())
+  title           String
+  content         String    @db.Text
+  shortcut        String?   @unique  // e.g., "/greeting"
+  category        String?
+  isActive        Boolean   @default(true)
+  usageCount      Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([shortcut])
+  @@index([category])
+}
+
+model ChatSettings {
+  id              String    @id @default(cuid())
+  
+  // Widget appearance
+  primaryColor    String    @default("#6366f1")
+  position        String    @default("bottom-right") // bottom-right, bottom-left
+  greeting        String    @default("Hi there! How can we help you today?")
+  awayMessage     String    @default("We're currently away. Leave a message and we'll get back to you soon!")
+  
+  // Availability
+  isOnline        Boolean   @default(true)
+  offlineMessage  String?
+  
+  // Business hours (JSON: { monday: { start: "09:00", end: "17:00" }, ... })
+  businessHours   Json?
+  timezone        String    @default("UTC")
+  
+  // Features
+  requireEmail    Boolean   @default(false)
+  showAgentPhoto  Boolean   @default(true)
+  playSound       Boolean   @default(true)
+  
+  // Auto-responses
+  autoReplyEnabled Boolean  @default(false)
+  autoReplyDelay  Int       @default(30)  // seconds
+  autoReplyMessage String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum ChatStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum ChatPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum SenderType {
+  USER
+  ADMIN
+  SYSTEM
+  BOT
+}
+
+enum MessageContentType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM
+}
+
+// ============================================
+// Background Jobs
+// ============================================
+
+model Job {
+  id          String    @id @default(cuid())
+  type        String
+  payload     Json
+  priority    String    @default("normal")  // low, normal, high, critical
+  status      String    @default("pending") // pending, processing, completed, failed, cancelled
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  timeout     Int       @default(300)  // seconds
+  error       String?   @db.Text
+  scheduledAt DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([type])
+  @@index([priority])
+}
+
+// ============================================
+// Delta Sync Tracking
+// ============================================
+
+model SyncCursor {
+  id          String    @id @default(cuid())
+  userId      String
+  entityType  String    // settings, notifications, etc.
+  clientId    String?   // Client device/app identifier
+  lastSyncAt  DateTime
+  lastVersion Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, entityType, clientId])
+  @@index([userId])
+  @@index([entityType])
+}
+
+model SyncTombstone {
+  id          String    @id @default(cuid())
+  entityType  String
+  entityId    String
+  userId      String
+  deletedAt   DateTime  @default(now())
+  expiresAt   DateTime
+
+  @@index([userId, entityType])
+  @@index([deletedAt])
+  @@index([expiresAt])
+}
+
+// ============================================
+// API Token Management (Extended)
+// ============================================
+
+model RefreshToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique  // Hashed JWT ID
+  sessionId   String?
+  deviceInfo  String?
+  ipAddress   String?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+}
+
+// ============================================
+// Request Logging (for debugging/compliance)
+// ============================================
+
+model RequestLog {
+  id            String    @id @default(cuid())
+  requestId     String    @unique
+  correlationId String
+  userId        String?
+  method        String
+  path          String
+  statusCode    Int?
+  duration      Int?      // milliseconds
+  ipAddress     String?
+  userAgent     String?
+  error         String?   @db.Text
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+
+  @@index([correlationId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([path])
+}
+
+// ============================================
+// Feature Flags
+// ============================================
+
+model FeatureFlag {
+  id          String        @id @default(cuid())
+  key         String        @unique
+  name        String
+  description String?
+  enabled     Boolean       @default(false)
+  scope       FlagScope     @default(GLOBAL)
+  orgId       String?       // For ORG-scoped flags
+  metadata    Json?         // Additional config (percentage rollout, etc.)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  createdBy   String?
+
+  @@index([key])
+  @@index([scope, orgId])
+}
+
+enum FlagScope {
+  GLOBAL
+  ORG
+  USER
+}
+
+// ============================================
+// Dead Letter Queue (Failed Jobs)
+// ============================================
+
+model DeadLetterJob {
+  id          String    @id @default(cuid())
+  jobId       String?   // Original job ID if available
+  jobName     String
+  payload     Json
+  error       String    @db.Text
+  attempts    Int       @default(1)
+  lastAttempt DateTime  @default(now())
+  resolved    Boolean   @default(false)
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+
+  @@index([jobName])
+  @@index([resolved])
+  @@index([createdAt])
+}
+
+// ============================================
+// Worker Heartbeat
+// ============================================
+
+model WorkerHeartbeat {
+  id          String    @id @default(cuid())
+  workerId    String    @unique
+  hostname    String?
+  lastSeenAt  DateTime  @default(now())
+  status      String    @default("active") // active, stopping, stopped
+  metadata    Json?
+
+  @@index([lastSeenAt])
+}

@@ -1,0 +1,116 @@
+# Traefik Dynamic Configuration - Middlewares
+# These middlewares are referenced via @file suffix in docker labels
+
+http:
+  middlewares:
+    # ============================================
+    # Security Headers (OWASP recommended)
+    # ============================================
+    security-headers:
+      headers:
+        # HSTS - Strict Transport Security
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        # Prevent clickjacking
+        frameDeny: true
+        # XSS Protection
+        browserXssFilter: true
+        # Content type sniffing prevention
+        contentTypeNosniff: true
+        # Referrer policy
+        referrerPolicy: "strict-origin-when-cross-origin"
+        # Content Security Policy (adjust per app needs)
+        contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none'"
+        # Permissions Policy
+        permissionsPolicy: "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+        # Custom headers
+        customResponseHeaders:
+          X-Powered-By: ""
+          Server: ""
+
+    # ============================================
+    # Rate Limiting
+    # ============================================
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 50
+        period: 1m
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    rate-limit-strict:
+      rateLimit:
+        average: 10
+        burst: 5
+        period: 1m
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    rate-limit-upload:
+      rateLimit:
+        average: 10
+        burst: 3
+        period: 1h
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    # ============================================
+    # Request Size Limits
+    # ============================================
+    body-limit-default:
+      buffering:
+        maxRequestBodyBytes: 1048576  # 1MB default
+
+    body-limit-upload:
+      buffering:
+        maxRequestBodyBytes: 52428800  # 50MB for uploads
+
+    # ============================================
+    # Compression
+    # ============================================
+    compress:
+      compress:
+        excludedContentTypes:
+          - "text/event-stream"
+
+    # ============================================
+    # Authentication
+    # ============================================
+    auth-basic:
+      basicAuth:
+        users:
+          - "admin:$apr1$H6uskkkW$IgXLP6ewTrSuBkTrqE8wj/"  # Change this!
+
+    metrics-auth:
+      headers:
+        customRequestHeaders:
+          X-Metrics-Required: "true"
+      # In practice, use IP allowlist or token validation in app
+
+    # ============================================
+    # Retry & Circuit Breaker
+    # ============================================
+    retry:
+      retry:
+        attempts: 3
+        initialInterval: 100ms
+
+    circuit-breaker:
+      circuitBreaker:
+        expression: "NetworkErrorRatio() > 0.30 || ResponseCodeRatio(500, 600, 0, 600) > 0.25"
+
+    # ============================================
+    # IP Allowlist (for internal endpoints)
+    # ============================================
+    internal-only:
+      ipAllowList:
+        sourceRange:
+          - "127.0.0.1/32"
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"

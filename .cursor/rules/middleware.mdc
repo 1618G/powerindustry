@@ -1,0 +1,43 @@
+---
+description: "Middleware layer rules - Security and cross-cutting concerns"
+globs: ["app/middleware/**"]
+---
+
+# Middleware Layer Rules
+
+## Purpose
+- Security enforcement (auth, CSRF, rate limiting)
+- Request/response transformation
+- Cross-cutting concerns (logging, tracing)
+
+## Security Middleware Pattern
+```typescript
+import { secureLoader, secureAction, SecurityPatterns } from "~/middleware/security.server";
+
+// Public route with rate limiting
+export const loader = secureLoader(SecurityPatterns.public, async ({ request }) => {
+  return json({ data });
+});
+
+// Protected route with auth
+export const loader = secureLoader(SecurityPatterns.authenticated, async ({ request, context }) => {
+  const { user } = context;
+  return json({ user });
+});
+
+// Form submission with CSRF + honeypot
+export const action = secureAction(SecurityPatterns.authenticatedForm, async ({ request, context }) => {
+  // CSRF and honeypot already validated
+  return json({ success: true });
+});
+```
+
+## Available Security Patterns
+- `public` - Rate limiting only
+- `authenticated` - Auth + rate limiting
+- `admin` - Admin role required
+- `publicForm` - CSRF + honeypot + rate limiting
+- `authenticatedForm` - Auth + CSRF + honeypot
+- `sensitive` - Full validation + audit logging
+- `api` - JWT authentication
+- `webhook` - No auth, strict rate limiting

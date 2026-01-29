@@ -1,0 +1,74 @@
+# OpenTelemetry Collector Configuration
+# Receives traces/metrics from app, exports to various backends
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 1000
+
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 50
+
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: ${DEPLOYMENT_ENV:-production}
+        action: upsert
+
+exporters:
+  # Logging exporter (default - always enabled)
+  logging:
+    verbosity: normal
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  # Prometheus exporter (optional)
+  # prometheus:
+  #   endpoint: "0.0.0.0:8889"
+  #   namespace: zza
+
+  # OTLP exporter to external service (optional)
+  # otlphttp:
+  #   endpoint: ${OTLP_BACKEND_ENDPOINT}
+  #   headers:
+  #     Authorization: Bearer ${OTLP_API_KEY}
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, zpages]
+  
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [logging]
+    
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [logging]
+    
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [logging]
+
+  telemetry:
+    logs:
+      level: info

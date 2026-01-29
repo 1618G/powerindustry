@@ -1,0 +1,57 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+
+# 1. Check for stub code
+echo "  ├─ Checking for stub code..."
+pnpm detect-stubs:strict
+if [ $? -ne 0 ]; then
+  echo "  │  ❌ Stub code detected! Remove stub code before committing."
+  echo "  │  Run 'pnpm detect-stubs' for details."
+  exit 1
+fi
+echo "  │  ✅ No stub code found"
+
+# 2. TypeScript check
+echo "  ├─ Running TypeScript check..."
+pnpm typecheck
+if [ $? -ne 0 ]; then
+  echo "  │  ❌ TypeScript errors found! Fix them before committing."
+  exit 1
+fi
+echo "  │  ✅ TypeScript check passed"
+
+# 3. Lint staged files
+echo "  ├─ Running ESLint on staged files..."
+npx lint-staged
+if [ $? -ne 0 ]; then
+  echo "  │  ❌ ESLint errors found! Fix them before committing."
+  exit 1
+fi
+echo "  │  ✅ ESLint passed"
+
+# 4. Check for dead code (optional - can be slow)
+if [ "$SKIP_DEAD_CODE_CHECK" != "1" ]; then
+  echo "  ├─ Checking for dead code..."
+  pnpm dead-code:check 2>/dev/null
+  if [ $? -ne 0 ]; then
+    echo "  │  ⚠️  Dead code detected. Run 'pnpm dead-code' for details."
+    echo "  │  Set SKIP_DEAD_CODE_CHECK=1 to skip this check."
+    # Warning only, don't block commit
+  else
+    echo "  │  ✅ No dead code detected"
+  fi
+fi
+
+# 5. Check for secrets
+echo "  └─ Checking for exposed secrets..."
+if git diff --cached --name-only | xargs grep -l -E "(sk-[a-zA-Z0-9]{20,}|AKIA[A-Z0-9]{16}|ghp_[a-zA-Z0-9]{36})" 2>/dev/null; then
+  echo "     ❌ Potential secrets detected in staged files!"
+  echo "     Review and remove any API keys, tokens, or credentials."
+  exit 1
+fi
+echo "     ✅ No exposed secrets found"
+
+echo ""
+echo "✅ All pre-commit checks passed!"

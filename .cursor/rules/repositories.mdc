@@ -1,0 +1,43 @@
+---
+description: "Repository layer rules - Data access only"
+globs: ["app/repositories/**"]
+---
+
+# Repository Layer Rules
+
+## This is the ONLY layer that can import db
+```typescript
+import { db } from "~/lib/prisma";
+```
+
+## Pattern
+- Pure data access, no business logic
+- Return Prisma types or null
+- Handle database errors, throw AppError for business errors
+
+## Example
+```typescript
+import { db } from "~/lib/prisma";
+import type { User } from "@prisma/client";
+
+class UserRepositoryClass {
+  async findById(id: string): Promise<User | null> {
+    return db.user.findUnique({ where: { id } });
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    return db.user.findUnique({ where: { email } });
+  }
+
+  async create(data: Prisma.UserCreateInput): Promise<User> {
+    return db.user.create({ data });
+  }
+}
+
+export const userRepository = new UserRepositoryClass();
+```
+
+## Rules
+- No business validation (that's for services)
+- No side effects (emails, logs) - just database operations
+- Export singleton instances, not classes

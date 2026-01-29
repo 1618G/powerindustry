@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zza-config
+data:
+  APP_URL: "https://yourdomain.com"
+  APP_NAME: "ZZA Platform"
+  NODE_ENV: "production"
+  
+  # Clerk
+  CLERK_PUBLISHABLE_KEY: "pk_live_..."
+  
+  # Feature Flags
+  ENABLE_REGISTRATION: "true"
+  ENABLE_OAUTH: "true"
+  ENABLE_MFA: "true"
+  ENABLE_AI: "true"
+  
+  # Rate Limiting
+  RATE_LIMIT_WINDOW_MS: "60000"
+  RATE_LIMIT_MAX_REQUESTS: "100"

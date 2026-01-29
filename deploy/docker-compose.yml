@@ -1,0 +1,234 @@
+# ZZA Build - Production Docker Compose
+# Usage: docker compose -f deploy/docker-compose.yml up -d
+#
+# DEPLOYMENT ORDER:
+# 1. docker compose -f deploy/docker-compose.yml run --rm migrate
+# 2. docker compose -f deploy/docker-compose.yml up -d
+#
+# Traefik only routes to containers passing health checks (health-gated rollout)
+
+services:
+  # ============================================
+  # Traefik Reverse Proxy
+  # ============================================
+  traefik:
+    image: traefik:v3.0
+    container_name: ${APP_NAME:-zza}-traefik
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--log.level=${TRAEFIK_LOG_LEVEL:-INFO}"
+      - "--accesslog=true"
+      - "--accesslog.format=json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik_letsencrypt:/letsencrypt
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      # Dashboard (optional, protected)
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.${DOMAIN}`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.middlewares=auth-basic@file"
+
+  # ============================================
+  # Application Server
+  # ============================================
+  app:
+    image: ${IMAGE_NAME:-zza-app}:${IMAGE_TAG:-latest}
+    container_name: ${APP_NAME:-zza}-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      APP_NAME: ${APP_NAME}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      APP_URL: https://${DOMAIN}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?schema=public&connection_limit=25
+      REDIS_URL: redis://redis:6379
+      SESSION_SECRET: ${SESSION_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # Stripe
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      # Email
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM}
+      # AI (optional)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Observability
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      METRICS_TOKEN: ${METRICS_TOKEN}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks:
+      - proxy
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      # Main app routing
+      - "traefik.http.routers.${APP_NAME:-zza}-app.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.${APP_NAME:-zza}-app.entrypoints=websecure"
+      - "traefik.http.routers.${APP_NAME:-zza}-app.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.${APP_NAME:-zza}-app.service=${APP_NAME:-zza}-app"
+      - "traefik.http.routers.${APP_NAME:-zza}-app.middlewares=security-headers@file,rate-limit@file,compress@file"
+      - "traefik.http.services.${APP_NAME:-zza}-app.loadbalancer.server.port=3000"
+      - "traefik.http.services.${APP_NAME:-zza}-app.loadbalancer.healthcheck.path=/api/healthz"
+      - "traefik.http.services.${APP_NAME:-zza}-app.loadbalancer.healthcheck.interval=10s"
+      # Block /api/metrics publicly
+      - "traefik.http.routers.${APP_NAME:-zza}-metrics-block.rule=Host(`${DOMAIN}`) && PathPrefix(`/api/metrics`)"
+      - "traefik.http.routers.${APP_NAME:-zza}-metrics-block.entrypoints=websecure"
+      - "traefik.http.routers.${APP_NAME:-zza}-metrics-block.priority=100"
+      - "traefik.http.routers.${APP_NAME:-zza}-metrics-block.middlewares=metrics-auth@file"
+      - "traefik.http.routers.${APP_NAME:-zza}-metrics-block.service=${APP_NAME:-zza}-app"
+
+  # ============================================
+  # Background Worker
+  # ============================================
+  worker:
+    image: ${IMAGE_NAME:-zza-app}:${IMAGE_TAG:-latest}
+    container_name: ${APP_NAME:-zza}-worker
+    restart: unless-stopped
+    command: ["pnpm", "run", "worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      APP_NAME: ${APP_NAME}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?schema=public&connection_limit=10
+      REDIS_URL: redis://redis:6379
+      SESSION_SECRET: ${SESSION_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM}
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      WORKER_MODE: "true"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/worker-heartbeat && find /tmp/worker-heartbeat -mmin -2 | grep -q ."]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ============================================
+  # Database Migration (one-shot)
+  # ============================================
+  migrate:
+    image: ${IMAGE_NAME:-zza-app}:${IMAGE_TAG:-latest}
+    container_name: ${APP_NAME:-zza}-migrate
+    command: ["pnpm", "db:migrate:deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?schema=public
+    networks:
+      - internal
+    profiles:
+      - migrate
+
+  # ============================================
+  # PostgreSQL Database
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: ${APP_NAME:-zza}-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Redis Cache
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: ${APP_NAME:-zza}-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # OpenTelemetry Collector (optional)
+  # ============================================
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.96.0
+    container_name: ${APP_NAME:-zza}-otel
+    restart: unless-stopped
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./traefik/otel-collector.yaml:/etc/otel/config.yaml:ro
+    networks:
+      - internal
+    profiles:
+      - observability
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+
+networks:
+  proxy:
+    external: true
+  internal:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  traefik_letsencrypt:
